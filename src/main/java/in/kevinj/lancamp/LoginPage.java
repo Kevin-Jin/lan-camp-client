@@ -50,9 +50,7 @@ public final class LoginPage {
 		json.put("username", userName);
 		json.put("password", password);
 		final BlockingQueue<Object> queue = new ArrayBlockingQueue<Object>(1);
-//TODO: implement login
-if (Boolean.TRUE) return "kevin";
-		WebRequester.ThroughHttpURLConnection.instance.loadPage("http://" + Model.domain + Model.path + "/api/login.php", "POST", json.toString(), new WebRequester.HttpResponse() {
+		WebRequester.ThroughHttpURLConnection.instance.loadPage("http://" + Model.domain + Model.path + "/api/login", "POST", json.toString(), new WebRequester.HttpResponse() {
 			@Override
 			public void failed(Throwable error) {
 				queue.offer(error);
@@ -60,20 +58,20 @@ if (Boolean.TRUE) return "kevin";
 
 			@Override
 			public void success(String type, String content) {
-				if (!type.equals("application/json")) {
-					queue.offer(new Throwable("Invalid response"));
+				if (!type.startsWith("application/json")) {
+					failed(new Throwable("Invalid response: " + type));
 					return;
 				}
 
 				try {
 					JSONObject json = new JSONObject(content);
 					if (json.has("error")) {
-						queue.offer(new Throwable(json.getString("error")));
+						failed(new Throwable(json.getString("error")));
 						return;
 					}
 					queue.offer(json.getString("user"));
 				} catch (JSONException e) {
-					queue.offer(e);
+					failed(e);
 					return;
 				}
 			}

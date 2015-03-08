@@ -46,6 +46,24 @@ public abstract class WebRequester {
 		@Override
 		public void loadPage(final String url, final String method, final String body, final ProgressAdapter listener, final HttpResponse responseHandler) {
 			Dispatchers.instance.getNetworkIoDispatcher().submit(new Runnable() {
+				private int utf8Length(CharSequence sequence) {
+					int count = 0;
+					for (int i = 0, len = sequence.length(); i < len; i++) {
+						char ch = sequence.charAt(i);
+						if (ch <= 0x7F) {
+							count++;
+						} else if (ch <= 0x7FF) {
+							count += 2;
+						} else if (Character.isHighSurrogate(ch)) {
+							count += 4;
+							++i;
+						} else {
+							count += 3;
+						}
+					}
+					return count;
+				}
+
 				@Override
 				public void run() {
 					try {
@@ -54,8 +72,8 @@ public abstract class WebRequester {
 						conn.setDoInput(true);
 						if (body != null && body.length() != 0) {
 							conn.setDoOutput(true);
-							conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
-							conn.setFixedLengthStreamingMode(body.length()); //x-www-form-urlencoded body should be ASCII only
+							conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+							conn.setFixedLengthStreamingMode(utf8Length(body));
 							listener.beginUpload(body.length());
 							listener.uploaded(0);
 							try (OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream())) {

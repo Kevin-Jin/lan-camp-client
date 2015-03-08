@@ -1,5 +1,7 @@
 package in.kevinj.lancamp.nativeimpl;
 
+import java.io.File;
+
 import in.kevinj.lancamp.model.Model;
 
 import com.sun.jna.Platform;
@@ -17,7 +19,17 @@ public abstract class ActiveWindowInfo {
 	}
 
 	public abstract String getActiveWindowProcess();
-	public abstract String getActiveWindowApplication();
+	public abstract String getActiveWindowCommand();
 	public abstract String getActiveWindowTitle();
 	public abstract Runnable startListening(Model model);
+
+	public String getActiveWindowApplication() {
+		String command = getActiveWindowCommand();
+		if (command != null) {
+			if (command.contains("org.eclipse.equinox.launcher"))
+				return "eclipse";
+		}
+		command = getActiveWindowProcess();
+		return command.substring(command.lastIndexOf(File.separatorChar) + 1);
+	}
 }

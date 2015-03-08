@@ -141,11 +141,8 @@ public class Win32WindowInfo extends ActiveWindowInfo {
 		return Native.toString(buffer);
 	}
 
-	/**
-	 * Get the launching path
-	 */
 	@Override
-	public String getActiveWindowApplication() {
+	public String getActiveWindowCommand() {
 		HWND hwnd = User32DLL.GetForegroundWindow();
 		final int MAX_TITLE_LENGTH = 1024;
 		char[] buffer = new char[MAX_TITLE_LENGTH * 2];
@@ -177,60 +174,48 @@ public class Win32WindowInfo extends ActiveWindowInfo {
 			Logger.getLogger(Win32WindowInfo.class.getName()).log(Level.INFO, "", e);
 		}
 
-		processPath = processPath.substring(processPath.lastIndexOf(File.separator) + 1);
-		int fileExtension = processPath.lastIndexOf('.');
-		if (fileExtension != -1)
-			processPath = processPath.substring(0, fileExtension);
-		if (processPath.equalsIgnoreCase("javaw") || processPath.equalsIgnoreCase("java") || processPath.equalsIgnoreCase("python")) {
-			//TODO: extract info from command line arguments rather than blacklist
-			//https://groups.google.com/forum/embed/?place=msg%2Fmicrosoft.public.win32.programmer.kernel%2FFoe4xnAxQ7I%2FBnXfGQxdSJsJ#!msg/microsoft.public.win32.programmer.kernel/Foe4xnAxQ7I/BnXfGQxdSJsJ
-			pointer = new PointerByReference();
-			User32DLL.GetWindowThreadProcessId(hwnd, pointer);
-			process = Kernel32DLL.OpenProcess(AccessRights.MAXIMUM_ALLOWED, false, pointer.getValue());
+		//https://groups.google.com/forum/embed/?place=msg%2Fmicrosoft.public.win32.programmer.kernel%2FFoe4xnAxQ7I%2FBnXfGQxdSJsJ#!msg/microsoft.public.win32.programmer.kernel/Foe4xnAxQ7I/BnXfGQxdSJsJ
+		pointer = new PointerByReference();
+		User32DLL.GetWindowThreadProcessId(hwnd, pointer);
+		process = Kernel32DLL.OpenProcess(AccessRights.MAXIMUM_ALLOWED, false, pointer.getValue());
 
-			int handle = Kernel32DLL.GetProcAddress(Kernel32.INSTANCE.GetModuleHandle("KERNEL32.DLL"), "GetCommandLineA");
-			if (handle == 0)
-				return null;
-			pointer = new PointerByReference();
-			HANDLE thread = Kernel32DLL.CreateRemoteThread(process, Pointer.NULL, new ULONG_PTR(0), handle, Pointer.NULL, 0, pointer);
-			if (thread == null || Pointer.nativeValue(thread.getPointer()) == 0)
-				return null;
-			if (Kernel32.INSTANCE.WaitForSingleObject(thread, WinBase.INFINITE) != 0)
-				return null;
-			StringByReference cmdLineStr = new StringByReference();
-			if (!Kernel32DLL.GetExitCodeThread(thread, cmdLineStr))
-				return null;
-			if (!Kernel32.INSTANCE.CloseHandle(thread))
-				return null;
-
-			handle = Kernel32DLL.GetProcAddress(Kernel32.INSTANCE.GetModuleHandle("KERNEL32.DLL"), "lstrlenA");
-			if (handle == 0)
-				return null;
-			thread = Kernel32DLL.CreateRemoteThread(process, Pointer.NULL, new ULONG_PTR(0), handle, cmdLineStr.getPointer().getPointer(0), 0, pointer);
-			if (thread == null || Pointer.nativeValue(thread.getPointer()) == 0)
-				return null;
-			if (Kernel32.INSTANCE.WaitForSingleObject(thread, WinBase.INFINITE) != 0)
-				return null;
-			IntByReference cmdLineStrLen = new IntByReference();
-			if (!Kernel32DLL.GetExitCodeThread(thread, cmdLineStrLen))
-				return null;
-			if (!Kernel32.INSTANCE.CloseHandle(thread))
-				return null;
-
-			Pointer heap = Kernel32DLL.HeapAlloc(Kernel32DLL.GetProcessHeap(), new DWORD(0x00000008), new SIZE_T(cmdLineStrLen.getValue()));
-			if (Pointer.nativeValue(heap) == 0)
-				return null;
-			LongByReference bytesRead = new LongByReference();
-			if (!Kernel32DLL.ReadProcessMemory(process, cmdLineStr.getPointer().getPointer(0), heap, new SIZE_T(cmdLineStrLen.getValue()), bytesRead))
-				return null;
-
-			String launchingCommand = heap.getString(0);
-			if (launchingCommand.contains("org.eclipse.equinox.launcher"))
-				return "eclipse";
-
+		int handle = Kernel32DLL.GetProcAddress(Kernel32.INSTANCE.GetModuleHandle("KERNEL32.DLL"), "GetCommandLineA");
+		if (handle == 0)
 			return null;
-		}
-		return processPath;
+		pointer = new PointerByReference();
+		HANDLE thread = Kernel32DLL.CreateRemoteThread(process, Pointer.NULL, new ULONG_PTR(0), handle, Pointer.NULL, 0, pointer);
+		if (thread == null || Pointer.nativeValue(thread.getPointer()) == 0)
+			return null;
+		if (Kernel32.INSTANCE.WaitForSingleObject(thread, WinBase.INFINITE) != 0)
+			return null;
+		StringByReference cmdLineStr = new StringByReference();
+		if (!Kernel32DLL.GetExitCodeThread(thread, cmdLineStr))
+			return null;
+		if (!Kernel32.INSTANCE.CloseHandle(thread))
+			return null;
+
+		handle = Kernel32DLL.GetProcAddress(Kernel32.INSTANCE.GetModuleHandle("KERNEL32.DLL"), "lstrlenA");
+		if (handle == 0)
+			return null;
+		thread = Kernel32DLL.CreateRemoteThread(process, Pointer.NULL, new ULONG_PTR(0), handle, cmdLineStr.getPointer().getPointer(0), 0, pointer);
+		if (thread == null || Pointer.nativeValue(thread.getPointer()) == 0)
+			return null;
+		if (Kernel32.INSTANCE.WaitForSingleObject(thread, WinBase.INFINITE) != 0)
+			return null;
+		IntByReference cmdLineStrLen = new IntByReference();
+		if (!Kernel32DLL.GetExitCodeThread(thread, cmdLineStrLen))
+			return null;
+		if (!Kernel32.INSTANCE.CloseHandle(thread))
+			return null;
+
+		Pointer heap = Kernel32DLL.HeapAlloc(Kernel32DLL.GetProcessHeap(), new DWORD(0x00000008), new SIZE_T(cmdLineStrLen.getValue()));
+		if (Pointer.nativeValue(heap) == 0)
+			return null;
+		LongByReference bytesRead = new LongByReference();
+		if (!Kernel32DLL.ReadProcessMemory(process, cmdLineStr.getPointer().getPointer(0), heap, new SIZE_T(cmdLineStrLen.getValue()), bytesRead))
+			return null;
+
+		return heap.getString(0);
 	}
 
 	@Override
@@ -285,6 +270,8 @@ public class Win32WindowInfo extends ActiveWindowInfo {
 		final Thread t = new Thread(new Runnable() {
 			@Override
 			public void run() {
+				m.setProcess(getActiveWindowApplication());
+
 				HANDLE handle = User32DLL.SetWinEventHook(User32DLL.EVENT_SYSTEM_FOREGROUND, User32DLL.EVENT_SYSTEM_MINIMIZEEND, new HWND(Pointer.NULL), new User32DLL.WinEventProc() {
 					private long currentProcess;
 
@@ -302,11 +289,13 @@ public class Win32WindowInfo extends ActiveWindowInfo {
 								long nowProcess = Pointer.nativeValue(hWnd.getPointer());
 								if (nowProcess != currentProcess) {
 									currentProcess = nowProcess;
+									final String title = getActiveWindowTitle();
+									final String process = getActiveWindowApplication();
 									SwingUtilities.invokeLater(new Runnable() {
 										@Override
 										public void run() {
-											System.out.println("SWITCHED TO " + getActiveWindowTitle());
-											m.setProcess(getActiveWindowApplication());
+											System.out.println("SWITCHED TO " + title);
+											m.setProcess(process);
 										}
 									});
 								}

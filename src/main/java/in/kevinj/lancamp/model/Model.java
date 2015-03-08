@@ -34,11 +34,13 @@ import org.jnativehook.keyboard.NativeKeyEvent;
 import org.jnativehook.keyboard.NativeKeyListener;
 import org.jnativehook.mouse.NativeMouseEvent;
 import org.jnativehook.mouse.NativeMouseListener;
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 public class Model {
-	public static final String domain = "localhost";
-	public static final String path = "/10k";
+	public static final String domain = "localhost:9000";
+	public static final String path = "";
 
 	public static volatile boolean popupsDisabled = false;
 
@@ -122,35 +124,45 @@ public class Model {
 	private void update() {
 		assert SwingUtilities.isEventDispatchThread();
 		if (updateLock) return;
+		Logger.getLogger(GlobalScreen.class.getPackage().getName()).setLevel(Level.OFF);
 
+		Map<String, JSONObject> loaded = new HashMap<>();
 		JSONObject json = new JSONObject();
+		JSONArray apps = new JSONArray();
 		for (Map.Entry<String, Integer> clicks : clickCount.entrySet()) {
-			JSONObject t = json.optJSONObject(clicks.getKey());
+			JSONObject t = loaded.get(clicks.getKey());
 			if (t == null) {
 				t = new JSONObject();
-				json.put(clicks.getKey(), t);
+				t.put("app", clicks.getKey());
+				apps.put(t);
+				loaded.put(clicks.getKey(), t);
 			}
 			t.put("clicks", clicks.getValue().intValue());
 		}
 		for (Map.Entry<String, Integer> keys : keyCount.entrySet()) {
-			JSONObject t = json.optJSONObject(keys.getKey());
+			JSONObject t = loaded.get(keys.getKey());
 			if (t == null) {
 				t = new JSONObject();
-				json.put(keys.getKey(), t);
+				t.put("app", keys.getKey());
+				apps.put(t);
+				loaded.put(keys.getKey(), t);
 			}
 			t.put("keys", keys.getValue().intValue());
 		}
 		for (Map.Entry<String, Long> times : timeCount.entrySet()) {
-			JSONObject t = json.optJSONObject(times.getKey());
+			JSONObject t = loaded.get(times.getKey());
 			if (t == null) {
 				t = new JSONObject();
-				json.put(times.getKey(), t);
+				t.put("app", times.getKey());
+				apps.put(t);
+				loaded.put(times.getKey(), t);
 			}
 			t.put("times", times.getValue().longValue());
 		}
 		json.put("user", username);
+		json.put("apps", apps);
 System.out.println(json);
-		WebRequester.ThroughHttpURLConnection.instance.loadPage("http://" + domain + path + "/api/update.php", "POST", json.toString(), new WebRequester.HttpResponse() {
+		WebRequester.ThroughHttpURLConnection.instance.loadPage("http://" + domain + path + "/api/update", "POST", json.toString(), new WebRequester.HttpResponse() {
 			@Override
 			public void failed(final Throwable error) {
 				SwingUtilities.invokeLater(new Runnable() {
@@ -164,9 +176,25 @@ System.out.println(json);
 
 			@Override
 			public void success(String type, final String content) {
+				if (!type.startsWith("application/json")) {
+					failed(new Throwable("Invalid response: " + type));
+					return;
+				}
+
 				SwingUtilities.invokeLater(new Runnable() {
 					@Override
 					public void run() {
+						try {
+							JSONObject json = new JSONObject(content);
+							if (json.has("error")) {
+								failed(new Throwable(json.getString("error")));
+								return;
+							}
+						} catch (JSONException e) {
+							failed(e);
+							return;
+						}
+
 						lastUpdateTime = System.currentTimeMillis();
 						lastUpdateClicks = runningClicks;
 						lastUpdateKeystrokes = runningKeystrokes;
@@ -230,7 +258,6 @@ System.out.println(json);
 			onError(e, "Could not listen for changes");
 			return;
 		}
-		setProcess(ActiveWindowInfo.INSTANCE.getActiveWindowApplication());
 		GlobalScreen.getInstance().addNativeKeyListener(new NativeKeyListener() {
 			@Override
 			public void nativeKeyPressed(NativeKeyEvent ke) {

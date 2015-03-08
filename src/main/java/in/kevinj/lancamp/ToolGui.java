@@ -203,6 +203,13 @@ public class ToolGui extends JApplet {
 
 	public static void main(String[] args) {
 		final Model m = new Model(args.length > 0 && validPath(args[0]) ? args[1] : "10kLife.json");
+/*try {
+	Pcap.main(args);
+} catch (PcapNativeException | NotOpenException e) {
+	// TODO Auto-generated catch block
+	e.printStackTrace();
+}*/
+//ActiveWindowInfo.INSTANCE.startListening(null);
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
@@ -235,18 +242,3 @@ public class ToolGui extends JApplet {
 		//so just restart the thread pools now
 	}
 }
-/*
-import in.kevinj.lancamp.nativeimpl.ActiveWindowInfo;
-
-public class ToolGui {
-	public static void main(String[] args) {
-		try {
-			Pcap.main(args);
-		} catch (PcapNativeException | NotOpenException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		ActiveWindowInfo.INSTANCE.startListening(null);
-	}
-}
-*/

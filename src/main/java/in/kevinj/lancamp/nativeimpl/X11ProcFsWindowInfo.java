@@ -35,10 +35,6 @@ public class X11ProcFsWindowInfo extends ActiveWindowInfo {
 
 	private X.Display display;
 
-	public X11ProcFsWindowInfo() {
-		display = new X.Display();
-	}
-
 	public String getActiveWindowProcess() {
 		try {
 			return readlink("/proc/" + display.getActiveWindow().getPID() + "/exe");
@@ -47,7 +43,7 @@ public class X11ProcFsWindowInfo extends ActiveWindowInfo {
 		}
 	}
 
-	public String getActiveWindowApplication() {
+	public String getActiveWindowCommand() {
 		try {
 			return new String(Files.readAllBytes(Paths.get("/proc/" + display.getActiveWindow().getPID() + "/cmdline"))).replaceAll("\0", " ");
 		} catch (IOException | X11Exception e) {
@@ -67,14 +63,16 @@ public class X11ProcFsWindowInfo extends ActiveWindowInfo {
 	public Runnable startListening(final Model m) {
 		final AtomicBoolean stop = new AtomicBoolean(false);
 		new Thread(new Runnable() {
-			private int currentProcess;
-
 			@Override
 			public void run() {
+				display = new X.Display();
+				m.setProcess(getActiveWindowApplication());
+
 				X11.XEvent event = new X11.XEvent();
 				display.getRootWindow().selectInput(X11.PropertyChangeMask);
 				//TODO: http://www.linuxquestions.org/questions/showthread.php?p=2431345#post2431345
 				try {
+					int currentProcess = 0;
 					while (!stop.get()) {
 						display.getRootWindow().nextEvent(event);
 						//handle the union type
@@ -86,11 +84,13 @@ public class X11ProcFsWindowInfo extends ActiveWindowInfo {
 									int nowProcess = display.getActiveWindow().getPID().intValue();
 									if (nowProcess != currentProcess) {
 										currentProcess = nowProcess;
+										final String title = getActiveWindowTitle();
+										final String process = getActiveWindowApplication();
 										SwingUtilities.invokeLater(new Runnable() {
 											@Override
 											public void run() {
-												System.out.println("SWITCHED TO " + getActiveWindowTitle());
-												m.setProcess(getActiveWindowApplication());
+												System.out.println("SWITCHED TO " + title);
+												m.setProcess(process);
 											}
 										});
 									}
